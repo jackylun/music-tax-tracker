@@ -1,0 +1,82 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { readDb, writeDb } from "@/lib/db";
+import { getTransactionById } from "@/lib/stats";
+import { buildTransactionFields, normalizeTransaction } from "@/lib/transactions";
+import { validateTransactionInput } from "@/lib/validate-transaction";
+import type { Receipt } from "@/lib/types";
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const transaction = getTransactionById(parseInt(id, 10));
+  if (!transaction) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ transaction });
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id: idParam } = await params;
+    const id = parseInt(idParam, 10);
+    const body = await request.json();
+    const validation = validateTransactionInput(body);
+    if ("error" in validation) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const db = readDb();
+    const index = db.transactions.findIndex((t) => t.id === id);
+    if (index === -1) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const existing = db.transactions[index];
+    const d = validation.data!;
+
+    const fields = buildTransactionFields({
+      type: d.type,
+      category: d.category,
+      date: d.date,
+      currency: d.currency,
+      original_amount: d.original_amount,
+      exchange_rate: d.exchange_rate,
+      performance_date: d.performance_date,
+      invoice_date: d.invoice_date,
+      due_date: d.due_date,
+      paid_date: d.paid_date,
+      payment_status: d.payment_status,
+      gig_client: (body.gig_client as string | undefined)?.trim() || null,
+      notes: (body.notes as string | undefined)?.trim() || null,
+      created_by: existing.created_by as string,
+      created_at: existing.created_at as string,
+      receipts: (existing.receipts as Receipt[] | undefined) ?? [],
+    });
+
+    db.transactions[index] = { id, ...fields };
+    writeDb(db);
+
+    return NextResponse.json({
+      transaction: normalizeTransaction(db.transactions[index]),
+    });
+  } catch {
+    return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 });
+  }
+}
