@@ -1,4 +1,4 @@
-import { del, list, put } from "@vercel/blob";
+import { del, get, list, put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import type { Receipt } from "./types";
 
@@ -9,9 +9,14 @@ export const ALLOWED_RECEIPT_TYPES: Record<string, string> = {
 };
 
 const MAX_RECEIPT_SIZE = 10 * 1024 * 1024; // 10 MB
+const BLOB_ACCESS = "private" as const;
 
 function receiptPathname(transactionId: number, filename: string): string {
   return `receipts/${transactionId}/${filename}`;
+}
+
+function receiptReference(receipt: Receipt): string {
+  return receipt.pathname ?? receipt.url ?? "";
 }
 
 export function validateReceiptFile(file: File): string | null {
@@ -38,7 +43,7 @@ export async function saveReceiptFile(
   const pathname = receiptPathname(transactionId, filename);
 
   const blob = await put(pathname, file, {
-    access: "public",
+    access: BLOB_ACCESS,
     contentType: file.type,
     addRandomSuffix: false,
   });
@@ -51,34 +56,42 @@ export async function saveReceiptFile(
     uploaded_at: new Date().toISOString(),
     uploaded_by: uploadedBy,
     url: blob.url,
+    pathname: blob.pathname,
   };
 }
 
 export function receiptExists(_transactionId: number, receipt: Receipt): boolean {
-  return Boolean(receipt.url);
+  return Boolean(receiptReference(receipt));
+}
+
+export async function getReceiptStream(receipt: Receipt) {
+  const reference = receiptReference(receipt);
+  if (!reference) {
+    throw new Error("Receipt not found");
+  }
+
+  const result = await get(reference, { access: BLOB_ACCESS });
+  if (!result || result.statusCode !== 200 || !result.stream) {
+    throw new Error("Receipt not found");
+  }
+
+  return result;
 }
 
 export async function getReceiptBuffer(receipt: Receipt): Promise<Buffer> {
-  if (!receipt.url) {
-    throw new Error("Receipt not found");
-  }
-
-  const response = await fetch(receipt.url);
-  if (!response.ok) {
-    throw new Error("Receipt not found");
-  }
-
-  return Buffer.from(await response.arrayBuffer());
+  const result = await getReceiptStream(receipt);
+  return Buffer.from(await new Response(result.stream).arrayBuffer());
 }
 
 export async function deleteReceiptFile(
   _transactionId: number,
   receipt: Receipt
 ): Promise<void> {
-  if (!receipt.url) return;
+  const reference = receiptReference(receipt);
+  if (!reference) return;
 
   try {
-    await del(receipt.url);
+    await del(reference);
   } catch (error) {
     console.error("Receipt delete error:", error);
     throw error;
@@ -89,22 +102,22 @@ export async function deleteAllReceiptsForTransaction(
   transactionId: number,
   receipts: Receipt[] = []
 ): Promise<void> {
-  const urls = new Set(
-    receipts.map((receipt) => receipt.url).filter(Boolean) as string[]
+  const references = new Set(
+    receipts.map((receipt) => receiptReference(receipt)).filter(Boolean)
   );
 
   try {
     const { blobs } = await list({ prefix: `receipts/${transactionId}/` });
     for (const blob of blobs) {
-      urls.add(blob.url);
+      references.add(blob.pathname ?? blob.url);
     }
   } catch (error) {
     console.error("Receipt list error:", error);
   }
 
   await Promise.all(
-    [...urls].map((url) =>
-      del(url).catch((error) => {
+    [...references].map((reference) =>
+      del(reference).catch((error) => {
         console.error("Receipt delete error:", error);
       })
     )

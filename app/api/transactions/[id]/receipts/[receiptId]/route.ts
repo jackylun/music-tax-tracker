@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getReceiptBuffer, receiptExists } from "@/lib/receipts";
+import { getReceiptStream, receiptExists } from "@/lib/receipts";
 import { getTransactionById } from "@/lib/stats";
 
 export async function GET(
@@ -26,13 +26,14 @@ export async function GET(
   }
 
   try {
-    const buffer = await getReceiptBuffer(receipt);
+    const result = await getReceiptStream(receipt);
 
-    return new NextResponse(new Uint8Array(buffer), {
+    return new NextResponse(result.stream, {
       headers: {
         "Content-Type": receipt.mime_type,
         "Content-Disposition": `inline; filename="${receipt.original_name}"`,
         "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch {

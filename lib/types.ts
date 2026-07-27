@@ -18,6 +18,8 @@ export interface Receipt {
   uploaded_by: string;
   /** Vercel Blob URL for the stored file */
   url?: string;
+  /** Vercel Blob pathname (used for private store reads) */
+  pathname?: string;
 }
 
 export interface Transaction {
