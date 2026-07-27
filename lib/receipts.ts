@@ -1,9 +1,6 @@
-import fs from "fs";
-import path from "path";
+import { del, list, put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import type { Receipt } from "./types";
-
-const RECEIPTS_DIR = path.join(process.cwd(), "data", "receipts");
 
 export const ALLOWED_RECEIPT_TYPES: Record<string, string> = {
   "image/jpeg": ".jpg",
@@ -13,12 +10,8 @@ export const ALLOWED_RECEIPT_TYPES: Record<string, string> = {
 
 const MAX_RECEIPT_SIZE = 10 * 1024 * 1024; // 10 MB
 
-export function ensureReceiptsDir(transactionId: number) {
-  const dir = path.join(RECEIPTS_DIR, String(transactionId));
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
+function receiptPathname(transactionId: number, filename: string): string {
+  return `receipts/${transactionId}/${filename}`;
 }
 
 export function validateReceiptFile(file: File): string | null {
@@ -42,11 +35,13 @@ export async function saveReceiptFile(
   const id = randomUUID();
   const ext = ALLOWED_RECEIPT_TYPES[file.type];
   const filename = `${id}${ext}`;
-  const dir = ensureReceiptsDir(transactionId);
-  const filePath = path.join(dir, filename);
+  const pathname = receiptPathname(transactionId, filename);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(filePath, buffer);
+  const blob = await put(pathname, file, {
+    access: "public",
+    contentType: file.type,
+    addRandomSuffix: false,
+  });
 
   return {
     id,
@@ -55,30 +50,63 @@ export async function saveReceiptFile(
     mime_type: file.type,
     uploaded_at: new Date().toISOString(),
     uploaded_by: uploadedBy,
+    url: blob.url,
   };
 }
 
-export function getReceiptPath(
-  transactionId: number,
+export function receiptExists(_transactionId: number, receipt: Receipt): boolean {
+  return Boolean(receipt.url);
+}
+
+export async function getReceiptBuffer(receipt: Receipt): Promise<Buffer> {
+  if (!receipt.url) {
+    throw new Error("Receipt not found");
+  }
+
+  const response = await fetch(receipt.url);
+  if (!response.ok) {
+    throw new Error("Receipt not found");
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+}
+
+export async function deleteReceiptFile(
+  _transactionId: number,
   receipt: Receipt
-): string {
-  return path.join(RECEIPTS_DIR, String(transactionId), receipt.filename);
-}
+): Promise<void> {
+  if (!receipt.url) return;
 
-export function deleteReceiptFile(transactionId: number, receipt: Receipt) {
-  const filePath = getReceiptPath(transactionId, receipt);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  try {
+    await del(receipt.url);
+  } catch (error) {
+    console.error("Receipt delete error:", error);
+    throw error;
   }
 }
 
-export function deleteAllReceiptsForTransaction(transactionId: number) {
-  const dir = path.join(RECEIPTS_DIR, String(transactionId));
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
+export async function deleteAllReceiptsForTransaction(
+  transactionId: number,
+  receipts: Receipt[] = []
+): Promise<void> {
+  const urls = new Set(
+    receipts.map((receipt) => receipt.url).filter(Boolean) as string[]
+  );
 
-export function receiptExists(transactionId: number, receipt: Receipt): boolean {
-  return fs.existsSync(getReceiptPath(transactionId, receipt));
+  try {
+    const { blobs } = await list({ prefix: `receipts/${transactionId}/` });
+    for (const blob of blobs) {
+      urls.add(blob.url);
+    }
+  } catch (error) {
+    console.error("Receipt list error:", error);
+  }
+
+  await Promise.all(
+    [...urls].map((url) =>
+      del(url).catch((error) => {
+        console.error("Receipt delete error:", error);
+      })
+    )
+  );
 }

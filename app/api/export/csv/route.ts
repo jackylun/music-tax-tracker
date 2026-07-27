@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
   let filename: string;
 
   if (format === "report") {
-    const report = getReportData(taxYear);
+    const report = await getReportData(taxYear);
     csv = reportToCsv(report);
     filename = `music-tax-report-${taxYear.replace("/", "-")}.csv`;
   } else {
-    const transactions = getTransactions(taxYear);
+    const transactions = await getTransactions(taxYear);
     csv = transactionsToCsv(transactions);
     filename = `music-tax-transactions-${taxYear.replace("/", "-")}.csv`;
   }

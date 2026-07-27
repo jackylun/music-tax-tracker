@@ -1,8 +1,10 @@
 import bcrypt from "bcryptjs";
 import { readDb, type DbUser } from "./db";
 
-export function findUserByUsername(username: string): DbUser | undefined {
-  const db = readDb();
+export async function findUserByUsername(
+  username: string
+): Promise<DbUser | undefined> {
+  const db = await readDb();
   return db.users.find((u) => u.username === username);
 }
 

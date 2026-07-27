@@ -16,7 +16,7 @@ export async function POST(
 
   const { id: idParam } = await params;
   const transactionId = parseInt(idParam, 10);
-  const transaction = getTransactionById(transactionId);
+  const transaction = await getTransactionById(transactionId);
 
   if (!transaction) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -36,13 +36,13 @@ export async function POST(
       session.displayName
     );
 
-    const db = readDb();
+    const db = await readDb();
     const index = db.transactions.findIndex((t) => t.id === transactionId);
     const existing = db.transactions[index];
     const receipts = (existing.receipts as Receipt[] | undefined) ?? [];
     receipts.push(receipt);
     existing.receipts = receipts;
-    writeDb(db);
+    await writeDb(db);
 
     return NextResponse.json({ receipt }, { status: 201 });
   } catch (err) {
@@ -68,7 +68,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Missing receiptId" }, { status: 400 });
   }
 
-  const db = readDb();
+  const db = await readDb();
   const index = db.transactions.findIndex((t) => t.id === transactionId);
   if (index === -1) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -80,10 +80,10 @@ export async function DELETE(
   existing.receipts = allReceipts.filter((r) => r.id !== receiptId);
 
   if (removed) {
-    deleteReceiptFile(transactionId, removed);
+    await deleteReceiptFile(transactionId, removed);
   }
 
-  writeDb(db);
+  await writeDb(db);
 
   return NextResponse.json({ ok: true });
 }

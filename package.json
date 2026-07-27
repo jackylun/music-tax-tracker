@@ -10,6 +10,8 @@
     "setup": "node scripts/setup.js"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.6.1",
     "bcryptjs": "^2.4.3",
     "exceljs": "^4.4.0",
     "jose": "^6.0.10",

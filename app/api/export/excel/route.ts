@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
   let filename: string;
 
   if (format === "transactions") {
-    const transactions = getTransactions(taxYear);
+    const transactions = await getTransactions(taxYear);
     buffer = await transactionsToExcel(transactions, taxYear);
     filename = `music-tax-transactions-${taxYear.replace("/", "-")}.xlsx`;
   } else {
-    const report = getReportData(taxYear);
+    const report = await getReportData(taxYear);
     buffer = await reportToExcel(report);
     filename = `music-tax-report-${taxYear.replace("/", "-")}.xlsx`;
   }

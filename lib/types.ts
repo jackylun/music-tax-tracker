@@ -16,6 +16,8 @@ export interface Receipt {
   mime_type: string;
   uploaded_at: string;
   uploaded_by: string;
+  /** Vercel Blob URL for the stored file */
+  url?: string;
 }
 
 export interface Transaction {

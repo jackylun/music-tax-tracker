@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   const taxYear = request.nextUrl.searchParams.get("taxYear") ?? undefined;
-  let transactions = getTransactions(taxYear);
+  let transactions = await getTransactions(taxYear);
 
   const type = request.nextUrl.searchParams.get("type");
   if (type === "income" || type === "expense") {
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  const years = getAvailableYears();
+  const years = await getAvailableYears();
 
   return NextResponse.json({ transactions, years });
 }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     const d = validation.data!;
 
-    const db = readDb();
+    const db = await readDb();
     const fields = buildTransactionFields({
       type: d.type,
       category: d.category,
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     db.transactions.push(transaction);
     db.nextTransactionId += 1;
-    writeDb(db);
+    await writeDb(db);
 
     return NextResponse.json(
       {
@@ -114,11 +114,14 @@ export async function DELETE(request: NextRequest) {
   }
 
   const transactionId = parseInt(id, 10);
-  deleteAllReceiptsForTransaction(transactionId);
 
-  const db = readDb();
+  const db = await readDb();
+  const existing = db.transactions.find((t) => t.id === transactionId);
+  const receipts = (existing?.receipts as Receipt[] | undefined) ?? [];
+  await deleteAllReceiptsForTransaction(transactionId, receipts);
+
   db.transactions = db.transactions.filter((t) => t.id !== transactionId);
-  writeDb(db);
+  await writeDb(db);
 
   return NextResponse.json({ ok: true });
 }

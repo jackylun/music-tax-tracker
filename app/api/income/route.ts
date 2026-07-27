@@ -12,8 +12,8 @@ export async function GET(request: NextRequest) {
   const taxYear =
     request.nextUrl.searchParams.get("taxYear") ?? getCurrentUkTaxYear();
 
-  const { transactions, breakdown } = getIncomePageStats(taxYear);
-  const years = getAvailableYears();
+  const { transactions, breakdown } = await getIncomePageStats(taxYear);
+  const years = await getAvailableYears();
 
   return NextResponse.json({ transactions, breakdown, years, taxYear });
 }

@@ -1,8 +1,4 @@
-import fs from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
+import { neon } from "@neondatabase/serverless";
 
 export interface DbUser {
   id: number;
@@ -12,7 +8,7 @@ export interface DbUser {
   created_at: string;
 }
 
-/** Raw transaction as stored in db.json (supports legacy fields). */
+/** Raw transaction as stored in the database (supports legacy fields). */
 export type StoredTransaction = Record<string, unknown> & { id: number };
 
 export interface DbData {
@@ -29,26 +25,54 @@ const EMPTY_DB: DbData = {
   nextTransactionId: 1,
 };
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+const sql = neon(process.env.DATABASE_URL!);
+
+function normalizeDbData(raw: Partial<DbData> | null | undefined): DbData {
+  return {
+    ...EMPTY_DB,
+    ...raw,
+    users: raw?.users ?? [],
+    transactions: raw?.transactions ?? [],
+    nextUserId: raw?.nextUserId ?? EMPTY_DB.nextUserId,
+    nextTransactionId: raw?.nextTransactionId ?? EMPTY_DB.nextTransactionId,
+  };
+}
+
+export async function getDatabase(): Promise<DbData> {
+  try {
+    const rows = await sql`SELECT data FROM app_storage WHERE id = 1`;
+    if (rows.length === 0) {
+      return { ...EMPTY_DB };
+    }
+    const data = rows[0].data as Partial<DbData> | string;
+    const parsed =
+      typeof data === "string" ? (JSON.parse(data) as Partial<DbData>) : data;
+    return normalizeDbData(parsed);
+  } catch (error) {
+    console.error("Database fetch error:", error);
+    return { ...EMPTY_DB };
   }
 }
 
-export function readDb(): DbData {
-  ensureDataDir();
-  if (!fs.existsSync(DB_PATH)) {
-    return { ...EMPTY_DB, users: [], transactions: [] };
+export async function saveDatabase(data: DbData): Promise<void> {
+  try {
+    await sql`
+      INSERT INTO app_storage (id, data)
+      VALUES (1, ${JSON.stringify(data)}::jsonb)
+      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data
+    `;
+  } catch (error) {
+    console.error("Database save error:", error);
+    throw error;
   }
-  const raw = fs.readFileSync(DB_PATH, "utf-8");
-  return { ...EMPTY_DB, ...JSON.parse(raw) };
 }
 
-export function writeDb(data: DbData) {
-  ensureDataDir();
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
+/** Read full app state from Neon. */
+export async function readDb(): Promise<DbData> {
+  return getDatabase();
 }
 
-export function getDbPath() {
-  return DB_PATH;
+/** Persist full app state to Neon. */
+export async function writeDb(data: DbData): Promise<void> {
+  await saveDatabase(data);
 }

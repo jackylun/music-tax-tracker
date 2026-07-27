@@ -9,13 +9,13 @@ export default async function IncomePage() {
   if (!session) redirect("/login");
 
   const taxYear = getCurrentUkTaxYear();
-  const { transactions, breakdown } = getIncomePageStats(taxYear);
+  const { transactions, breakdown } = await getIncomePageStats(taxYear);
 
   return (
     <IncomeClient
       displayName={session.displayName}
       initialTaxYear={taxYear}
-      initialYears={getAvailableYears()}
+      initialYears={await getAvailableYears()}
       initialTransactions={transactions}
       initialBreakdown={breakdown}
     />

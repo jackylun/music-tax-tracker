@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const { id } = await params;
-  const transaction = getTransactionById(parseInt(id, 10));
+  const transaction = await getTransactionById(parseInt(id, 10));
   if (!transaction) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -42,7 +42,7 @@ export async function PUT(
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    const db = readDb();
+    const db = await readDb();
     const index = db.transactions.findIndex((t) => t.id === id);
     if (index === -1) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -71,7 +71,7 @@ export async function PUT(
     });
 
     db.transactions[index] = { id, ...fields };
-    writeDb(db);
+    await writeDb(db);
 
     return NextResponse.json({
       transaction: normalizeTransaction(db.transactions[index]),

@@ -21,8 +21,8 @@ export default async function TransactionsPage({
         : "all";
 
   const taxYear = getCurrentUkTaxYear();
-  const years = getAvailableYears();
-  const transactions = getTransactions(taxYear);
+  const years = await getAvailableYears();
+  const transactions = await getTransactions(taxYear);
 
   return (
     <TransactionsClient

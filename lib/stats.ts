@@ -17,8 +17,8 @@ import type {
   Transaction,
 } from "./types";
 
-function getAllTransactions(): Transaction[] {
-  const db = readDb();
+async function getAllTransactions(): Promise<Transaction[]> {
+  const db = await readDb();
   return db.transactions.map((t) => normalizeTransaction(t));
 }
 
@@ -29,8 +29,8 @@ function sortByDateDesc(transactions: Transaction[]): Transaction[] {
   });
 }
 
-export function getTransactions(taxYear?: string): Transaction[] {
-  let transactions = getAllTransactions();
+export async function getTransactions(taxYear?: string): Promise<Transaction[]> {
+  let transactions = await getAllTransactions();
 
   if (taxYear) {
     transactions = transactions.filter((t) => isDateInTaxYear(t.date, taxYear));
@@ -39,16 +39,20 @@ export function getTransactions(taxYear?: string): Transaction[] {
   return sortByDateDesc(transactions);
 }
 
-export function getIncomeTransactions(taxYear?: string): Transaction[] {
-  return getTransactions(taxYear).filter((t) => t.type === "income");
+export async function getIncomeTransactions(
+  taxYear?: string
+): Promise<Transaction[]> {
+  return (await getTransactions(taxYear)).filter((t) => t.type === "income");
 }
 
-export function getTransactionById(id: number): Transaction | undefined {
-  return getAllTransactions().find((t) => t.id === id);
+export async function getTransactionById(
+  id: number
+): Promise<Transaction | undefined> {
+  return (await getAllTransactions()).find((t) => t.id === id);
 }
 
-export function getAvailableYears(): string[] {
-  const db = readDb();
+export async function getAvailableYears(): Promise<string[]> {
+  const db = await readDb();
   const dates = db.transactions.map((t) => t.date as string);
   return getAvailableTaxYears(dates);
 }
@@ -105,8 +109,10 @@ function toIncomeBreakdown(
   };
 }
 
-export function getTaxYearSummary(taxYear: string): TaxYearSummary {
-  const transactions = getTransactions(taxYear);
+export async function getTaxYearSummary(
+  taxYear: string
+): Promise<TaxYearSummary> {
+  const transactions = await getTransactions(taxYear);
   const totalIncome = sumReceivedIncome(transactions);
   const totalExpenses = sumExpenses(transactions);
 
@@ -138,9 +144,9 @@ function isYtd(dateStr: string, taxYear: string): boolean {
   return dateStr >= taxYearStart && dateStr <= effectiveEnd;
 }
 
-export function getDashboardStats(): DashboardStats {
+export async function getDashboardStats(): Promise<DashboardStats> {
   const taxYear = getCurrentUkTaxYear();
-  const all = getAllTransactions();
+  const all = await getAllTransactions();
 
   const ytd = all.filter((t) => isYtd(t.date, taxYear));
   const thisMonth = all.filter((t) => isCurrentMonth(t.date));
@@ -161,8 +167,10 @@ export function getDashboardStats(): DashboardStats {
   };
 }
 
-export function getMonthlySummaries(taxYear: string): MonthlySummary[] {
-  const transactions = getTransactions(taxYear);
+export async function getMonthlySummaries(
+  taxYear: string
+): Promise<MonthlySummary[]> {
+  const transactions = await getTransactions(taxYear);
   const startYear = parseInt(taxYear.split("/")[0], 10);
 
   const months: MonthlySummary[] = [];
@@ -191,16 +199,16 @@ export function getMonthlySummaries(taxYear: string): MonthlySummary[] {
   return months;
 }
 
-export function getReportData(taxYear: string): ReportData {
+export async function getReportData(taxYear: string): Promise<ReportData> {
   return {
     taxYear,
-    summary: getTaxYearSummary(taxYear),
-    monthly: getMonthlySummaries(taxYear),
+    summary: await getTaxYearSummary(taxYear),
+    monthly: await getMonthlySummaries(taxYear),
   };
 }
 
-export function getIncomePageStats(taxYear: string) {
-  const income = getIncomeTransactions(taxYear);
+export async function getIncomePageStats(taxYear: string) {
+  const income = await getIncomeTransactions(taxYear);
   const breakdown = sumIncomeByStatus(income);
   return { transactions: income, breakdown };
 }

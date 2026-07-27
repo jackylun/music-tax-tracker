@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user = findUserByUsername(username.trim().toLowerCase());
+    const user = await findUserByUsername(username.trim().toLowerCase());
     if (!user || !verifyPassword(password, user.password_hash)) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
