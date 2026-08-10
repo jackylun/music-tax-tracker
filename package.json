@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "setup": "node scripts/setup.js"
+    "setup": "node scripts/setup.js",
+    "test:fx": "node scripts/test-fx.js",
+    "audit:fx": "node scripts/audit-fx.js"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

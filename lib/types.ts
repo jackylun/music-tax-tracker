@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "./currency";
+import type { RateSource } from "./exchange-rates";
 
 export type TransactionType = "income" | "expense";
 
@@ -33,6 +34,10 @@ export interface Transaction {
   currency: CurrencyCode;
   original_amount: number;
   exchange_rate: number;
+  exchange_rate_date: string | null;
+  rate_source: RateSource | null;
+  rate_manual_override: boolean;
+  gbp_manual_override: boolean;
   /** Performance / work date (income) or transaction date (expense) */
   date: string;
   performance_date: string | null;

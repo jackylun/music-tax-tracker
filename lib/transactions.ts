@@ -7,6 +7,7 @@ import {
 } from "./currency";
 import { isValidPaymentStatus } from "./income";
 import type { PaymentStatus, Receipt, Transaction } from "./types";
+import type { RateSource } from "./exchange-rates";
 
 function parseOptionalDate(value: unknown): string | null {
   if (value == null || value === "") return null;
@@ -42,6 +43,10 @@ export function normalizeTransaction(raw: Record<string, unknown>): Transaction 
     currency,
     original_amount: originalAmount,
     exchange_rate: exchangeRate,
+    exchange_rate_date: parseOptionalDate(raw.exchange_rate_date),
+    rate_source: (raw.rate_source as RateSource | undefined) ?? null,
+    rate_manual_override: Boolean(raw.rate_manual_override),
+    gbp_manual_override: Boolean(raw.gbp_manual_override),
     date,
     performance_date:
       parseOptionalDate(raw.performance_date) ?? date,
@@ -114,6 +119,11 @@ export function buildTransactionFields(input: {
   currency: CurrencyCode;
   original_amount: number;
   exchange_rate: number;
+  amount_gbp: number;
+  exchange_rate_date?: string | null;
+  rate_source?: RateSource | null;
+  rate_manual_override?: boolean;
+  gbp_manual_override?: boolean;
   gig_client: string | null;
   notes: string | null;
   performance_date?: string | null;
@@ -130,11 +140,10 @@ export function buildTransactionFields(input: {
       ? roundJpy(input.original_amount)
       : roundMoney(input.original_amount);
   const exchangeRate = input.currency === "GBP" ? 1 : input.exchange_rate;
-  const amountGbp = calculateGbpEquivalent(
-    originalAmount,
-    input.currency,
-    exchangeRate
-  );
+  const amountGbp =
+    input.currency === "GBP"
+      ? originalAmount
+      : roundMoney(input.amount_gbp);
 
   const base = {
     type: input.type,
@@ -144,6 +153,10 @@ export function buildTransactionFields(input: {
     exchange_rate: exchangeRate,
     amount_gbp: amountGbp,
     amount: amountGbp,
+    exchange_rate_date: input.exchange_rate_date ?? null,
+    rate_source: input.rate_source ?? (input.currency === "GBP" ? "frankfurter" : null),
+    rate_manual_override: input.rate_manual_override ?? false,
+    gbp_manual_override: input.gbp_manual_override ?? false,
     date: input.date,
     gig_client: input.gig_client,
     notes: input.notes,

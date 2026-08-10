@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { readDb, writeDb } from "@/lib/db";
 import { getTransactionById } from "@/lib/stats";
-import { buildTransactionFields, normalizeTransaction } from "@/lib/transactions";
+import {
+  buildTransactionFieldsWithCurrency,
+  exchangeRateErrorResponse,
+} from "@/lib/transaction-currency";
+import { normalizeTransaction } from "@/lib/transactions";
 import { validateTransactionInput } from "@/lib/validate-transaction";
 import type { Receipt } from "@/lib/types";
 
@@ -51,24 +55,17 @@ export async function PUT(
     const existing = db.transactions[index];
     const d = validation.data!;
 
-    const fields = buildTransactionFields({
-      type: d.type,
-      category: d.category,
-      date: d.date,
-      currency: d.currency,
-      original_amount: d.original_amount,
-      exchange_rate: d.exchange_rate,
-      performance_date: d.performance_date,
-      invoice_date: d.invoice_date,
-      due_date: d.due_date,
-      paid_date: d.paid_date,
-      payment_status: d.payment_status,
-      gig_client: (body.gig_client as string | undefined)?.trim() || null,
-      notes: (body.notes as string | undefined)?.trim() || null,
-      created_by: existing.created_by as string,
-      created_at: existing.created_at as string,
-      receipts: (existing.receipts as Receipt[] | undefined) ?? [],
-    });
+    const fields = await buildTransactionFieldsWithCurrency(
+      d,
+      {
+        gig_client: (body.gig_client as string | undefined)?.trim() || null,
+        notes: (body.notes as string | undefined)?.trim() || null,
+        created_by: existing.created_by as string,
+        created_at: existing.created_at as string,
+        receipts: (existing.receipts as Receipt[] | undefined) ?? [],
+      },
+      existing
+    );
 
     db.transactions[index] = { id, ...fields };
     await writeDb(db);
@@ -76,7 +73,11 @@ export async function PUT(
     return NextResponse.json({
       transaction: normalizeTransaction(db.transactions[index]),
     });
-  } catch {
+  } catch (error) {
+    const fxError = exchangeRateErrorResponse(error);
+    if (fxError) {
+      return NextResponse.json({ error: fxError.error }, { status: fxError.status });
+    }
     return NextResponse.json({ error: "Failed to update transaction" }, { status: 500 });
   }
 }

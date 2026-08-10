@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { fetchGbpRate, ExchangeRateError } from "@/lib/exchange-rates";
 import { isValidCurrency, type CurrencyCode } from "@/lib/currency";
 
-/** Fetch GBP exchange rate via Frankfurter (ECB data). */
 export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session) {
@@ -16,42 +16,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
   }
 
-  if (currency === "GBP") {
-    return NextResponse.json({ currency: "GBP", rate: 1, date: date ?? "latest" });
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: "Valid date required" }, { status: 400 });
   }
 
   try {
-    const endpoint = date
-      ? `https://api.frankfurter.app/${date}?from=${currency}&to=GBP`
-      : `https://api.frankfurter.app/latest?from=${currency}&to=GBP`;
-
-    const res = await fetch(endpoint, { next: { revalidate: 3600 } });
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: "Could not fetch exchange rate" },
-        { status: 502 }
-      );
-    }
-
-    const data = await res.json();
-    const rate = data.rates?.GBP as number | undefined;
-
-    if (!rate) {
-      return NextResponse.json(
-        { error: "Rate not available for this date" },
-        { status: 404 }
-      );
-    }
-
+    const result = await fetchGbpRate(currency as CurrencyCode, date);
     return NextResponse.json({
-      currency: currency as CurrencyCode,
-      rate,
-      date: data.date,
+      currency: result.currency,
+      rate: result.rate,
+      date: result.rateDate,
+      requestedDate: result.requestedDate,
+      source: result.source,
     });
-  } catch {
-    return NextResponse.json(
-      { error: "Exchange rate service unavailable" },
-      { status: 503 }
-    );
+  } catch (error) {
+    const message =
+      error instanceof ExchangeRateError
+        ? error.message
+        : "Exchange rate service unavailable";
+    const status = error instanceof ExchangeRateError ? 404 : 503;
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -4,7 +4,11 @@ import { readDb, writeDb } from "@/lib/db";
 import { deleteAllReceiptsForTransaction } from "@/lib/receipts";
 import { validateTransactionInput } from "@/lib/validate-transaction";
 import { getAvailableYears, getTransactions } from "@/lib/stats";
-import { buildTransactionFields, normalizeTransaction } from "@/lib/transactions";
+import {
+  buildTransactionFieldsWithCurrency,
+  exchangeRateErrorResponse,
+} from "@/lib/transaction-currency";
+import { normalizeTransaction } from "@/lib/transactions";
 import type { Receipt } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -66,18 +70,7 @@ export async function POST(request: NextRequest) {
     const d = validation.data!;
 
     const db = await readDb();
-    const fields = buildTransactionFields({
-      type: d.type,
-      category: d.category,
-      date: d.date,
-      currency: d.currency,
-      original_amount: d.original_amount,
-      exchange_rate: d.exchange_rate,
-      performance_date: d.performance_date,
-      invoice_date: d.invoice_date,
-      due_date: d.due_date,
-      paid_date: d.paid_date,
-      payment_status: d.payment_status,
+    const fields = await buildTransactionFieldsWithCurrency(d, {
       gig_client: (body.gig_client as string | undefined)?.trim() || null,
       notes: (body.notes as string | undefined)?.trim() || null,
       created_by: session.displayName,
@@ -97,7 +90,11 @@ export async function POST(request: NextRequest) {
       },
       { status: 201 }
     );
-  } catch {
+  } catch (error) {
+    const fxError = exchangeRateErrorResponse(error);
+    if (fxError) {
+      return NextResponse.json({ error: fxError.error }, { status: fxError.status });
+    }
     return NextResponse.json({ error: "Failed to create transaction" }, { status: 500 });
   }
 }

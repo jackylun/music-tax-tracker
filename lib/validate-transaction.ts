@@ -3,7 +3,6 @@ import {
   isValidIncomeCategory,
 } from "./categories";
 import {
-  calculateGbpEquivalent,
   isValidCurrency,
   roundJpy,
   roundMoney,
@@ -57,23 +56,26 @@ export function validateTransactionInput(body: Record<string, unknown>) {
   originalAmount =
     currency === "JPY" ? roundJpy(originalAmount) : roundMoney(originalAmount);
 
-  let exchangeRate = 1;
-  if (currency !== "GBP") {
-    exchangeRate = parseFloat(String(body.exchange_rate ?? ""));
-    if (isNaN(exchangeRate) || exchangeRate <= 0) {
-      return { error: "Invalid exchange rate" };
-    }
-  }
-
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return { error: "Invalid date" };
   }
 
-  const amountGbp = calculateGbpEquivalent(
-    originalAmount,
-    currency,
-    exchangeRate
-  );
+  const rateManualOverride = body.rate_manual_override === true;
+  const gbpManualOverride = body.gbp_manual_override === true;
+
+  if (currency !== "GBP" && !rateManualOverride && !gbpManualOverride) {
+    // Server will auto-fetch; client may still send a preview rate.
+  } else if (currency !== "GBP" && rateManualOverride) {
+    const rate = parseFloat(String(body.exchange_rate ?? ""));
+    if (isNaN(rate) || rate <= 0) {
+      return { error: "Invalid exchange rate" };
+    }
+  } else if (currency !== "GBP" && gbpManualOverride) {
+    const gbp = parseFloat(String(body.amount_gbp ?? ""));
+    if (isNaN(gbp) || gbp <= 0) {
+      return { error: "Invalid GBP amount" };
+    }
+  }
 
   let paymentStatus: PaymentStatus | null = null;
   if (txType === "income") {
@@ -98,14 +100,17 @@ export function validateTransactionInput(body: Record<string, unknown>) {
       category,
       currency,
       original_amount: originalAmount,
-      exchange_rate: exchangeRate,
-      amount_gbp: amountGbp,
       date,
       performance_date: parseOptionalDate(body.performance_date) ?? date,
       invoice_date: invoiceDate,
       due_date: dueDate,
       paid_date: paidDate,
       payment_status: paymentStatus,
+      rate_manual_override: rateManualOverride,
+      gbp_manual_override: gbpManualOverride,
+      exchange_rate:
+        body.exchange_rate != null ? Number(body.exchange_rate) : undefined,
+      amount_gbp: body.amount_gbp != null ? Number(body.amount_gbp) : undefined,
     },
   };
 }

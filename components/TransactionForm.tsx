@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import CategorySelect from "./CategorySelect";
 import { getDefaultCategory } from "@/lib/categories";
@@ -48,6 +48,21 @@ export default function TransactionForm({
       ? String(initial.exchange_rate)
       : "1"
   );
+  const [exchangeRateDate, setExchangeRateDate] = useState(
+    initial?.exchange_rate_date ?? ""
+  );
+  const [rateSource, setRateSource] = useState<string>(
+    initial?.rate_source ?? ""
+  );
+  const [manualGbpAmount, setManualGbpAmount] = useState(
+    initial?.gbp_manual_override ? String(initial.amount_gbp) : ""
+  );
+  const [rateManualOverride, setRateManualOverride] = useState(
+    initial?.rate_manual_override ?? false
+  );
+  const [gbpManualOverride, setGbpManualOverride] = useState(
+    initial?.gbp_manual_override ?? false
+  );
   const [date, setDate] = useState(
     initial?.date ?? new Date().toISOString().slice(0, 10)
   );
@@ -68,41 +83,95 @@ export default function TransactionForm({
   const [receipts, setReceipts] = useState(initial?.receipts ?? []);
   const [receiptKey, setReceiptKey] = useState(0);
 
+  const initialCurrencyRef = useRef(initial?.currency ?? "GBP");
+  const initialDateRef = useRef(initial?.date ?? date);
+  const skipAutoFetchRef = useRef(isEdit);
+
   const gbpPreview = useMemo(() => {
+    if (currency === "GBP") {
+      const amt = parseFloat(originalAmount);
+      if (isNaN(amt)) return null;
+      return roundMoney(amt);
+    }
+    if (gbpManualOverride) {
+      const gbp = parseFloat(manualGbpAmount);
+      if (isNaN(gbp)) return null;
+      return roundMoney(gbp);
+    }
     const amt = parseFloat(originalAmount);
-    const rate = currency === "GBP" ? 1 : parseFloat(exchangeRate);
+    const rate = parseFloat(exchangeRate);
     if (isNaN(amt) || isNaN(rate)) return null;
     return roundMoney(amt * rate);
-  }, [originalAmount, exchangeRate, currency]);
+  }, [
+    originalAmount,
+    exchangeRate,
+    currency,
+    gbpManualOverride,
+    manualGbpAmount,
+  ]);
+
+  const fetchExchangeRate = useCallback(async () => {
+    if (currency === "GBP") return;
+    setFetchingRate(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/exchange-rate?currency=${currency}&date=${encodeURIComponent(date)}`
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not fetch rate");
+      setExchangeRate(String(data.rate));
+      setExchangeRateDate(data.date ?? date);
+      setRateSource(data.source ?? "frankfurter");
+      setRateManualOverride(false);
+      setGbpManualOverride(false);
+      setManualGbpAmount("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rate fetch failed");
+    } finally {
+      setFetchingRate(false);
+    }
+  }, [currency, date]);
 
   useEffect(() => {
     if (currency === "GBP") {
       setExchangeRate("1");
+      setExchangeRateDate(date);
+      setRateSource("frankfurter");
+      setRateManualOverride(false);
+      setGbpManualOverride(false);
+      setManualGbpAmount("");
+      return;
     }
-  }, [currency]);
+
+    if (skipAutoFetchRef.current) {
+      skipAutoFetchRef.current = false;
+      return;
+    }
+
+    const currencyChanged = currency !== initialCurrencyRef.current;
+    const dateChanged = date !== initialDateRef.current;
+    if (isEdit && !currencyChanged && !dateChanged && !rateManualOverride && !gbpManualOverride) {
+      return;
+    }
+
+    if (!rateManualOverride && !gbpManualOverride) {
+      fetchExchangeRate();
+    }
+  }, [
+    currency,
+    date,
+    isEdit,
+    fetchExchangeRate,
+    rateManualOverride,
+    gbpManualOverride,
+  ]);
 
   useEffect(() => {
     if (paymentStatus === "Paid" && !paidDate) {
       setPaidDate(new Date().toISOString().slice(0, 10));
     }
   }, [paymentStatus, paidDate]);
-
-  async function fetchExchangeRate() {
-    if (currency === "GBP") return;
-    setFetchingRate(true);
-    try {
-      const res = await fetch(
-        `/api/exchange-rate?currency=${currency}&date=${date}`
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not fetch rate");
-      setExchangeRate(String(data.rate));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Rate fetch failed");
-    } finally {
-      setFetchingRate(false);
-    }
-  }
 
   function handleTypeChange(newType: "income" | "expense") {
     setType(newType);
@@ -113,16 +182,78 @@ export default function TransactionForm({
 
   function handleAmountChange(value: string) {
     const decimals = getDecimalPlaces(currency);
-    const pattern =
-      decimals === 0 ? /^\d*$/ : /^\d*\.?\d{0,2}$/;
+    const pattern = decimals === 0 ? /^\d*$/ : /^\d*\.?\d{0,2}$/;
     if (value === "" || pattern.test(value)) {
       setOriginalAmount(value);
     }
   }
 
+  function handleExchangeRateChange(value: string) {
+    if (/^\d*\.?\d{0,6}$/.test(value) || value === "") {
+      setExchangeRate(value);
+      setRateManualOverride(true);
+      setGbpManualOverride(false);
+      setManualGbpAmount("");
+      setRateSource("manual");
+      setExchangeRateDate(date);
+    }
+  }
+
+  function handleManualGbpChange(value: string) {
+    if (/^\d*\.?\d{0,2}$/.test(value) || value === "") {
+      setManualGbpAmount(value);
+      setGbpManualOverride(true);
+      setRateManualOverride(false);
+      setRateSource("manual");
+      setExchangeRateDate(date);
+    }
+  }
+
+  function enableAutoRate() {
+    setRateManualOverride(false);
+    setGbpManualOverride(false);
+    setManualGbpAmount("");
+    fetchExchangeRate();
+  }
+
+  function validateBeforeSubmit(): string | null {
+    if (currency === "GBP") return null;
+    if (gbpManualOverride) {
+      const gbp = parseFloat(manualGbpAmount);
+      if (isNaN(gbp) || gbp <= 0) {
+        return "Enter the actual GBP amount from your bank or card.";
+      }
+      return null;
+    }
+    if (rateManualOverride) {
+      const rate = parseFloat(exchangeRate);
+      if (isNaN(rate) || rate <= 0) {
+        return "Enter a valid exchange rate.";
+      }
+      return null;
+    }
+    const rate = parseFloat(exchangeRate);
+    if (fetchingRate) {
+      return "Waiting for exchange rate…";
+    }
+    if (isNaN(rate) || rate <= 0) {
+      return "Exchange rate is required. Fetch a rate or enter one manually.";
+    }
+    if (rate === 1) {
+      return "Foreign currency cannot use a 1:1 rate unless you enter it manually.";
+    }
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    const validationError = validateBeforeSubmit();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
 
     if (savedId && !isEdit) {
       router.push(type === "income" ? "/income" : "/transactions");
@@ -137,11 +268,20 @@ export default function TransactionForm({
       category,
       currency,
       original_amount: originalAmount,
-      exchange_rate: currency === "GBP" ? 1 : exchangeRate,
       date,
       gig_client: gigClient,
       notes,
+      rate_manual_override: rateManualOverride,
+      gbp_manual_override: gbpManualOverride,
     };
+
+    if (currency === "GBP") {
+      payload.exchange_rate = 1;
+    } else if (gbpManualOverride) {
+      payload.amount_gbp = manualGbpAmount;
+    } else {
+      payload.exchange_rate = exchangeRate;
+    }
 
     if (type === "income") {
       payload.performance_date = date;
@@ -287,28 +427,69 @@ export default function TransactionForm({
       </div>
 
       {currency !== "GBP" && (
-        <div>
-          <label className={labelClass} htmlFor="exchange_rate">
-            Exchange rate (1 {currency} = ? GBP)
-          </label>
-          <div className="flex gap-2">
-            <input
-              id="exchange_rate"
-              type="text"
-              inputMode="decimal"
-              value={exchangeRate}
-              onChange={(e) => setExchangeRate(e.target.value)}
-              className={inputClass}
-              required
-            />
-            <button
-              type="button"
-              onClick={fetchExchangeRate}
-              disabled={fetchingRate}
-              className="btn-secondary shrink-0 px-4"
-            >
-              {fetchingRate ? "…" : "Fetch rate"}
-            </button>
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass} htmlFor="exchange_rate">
+              Exchange rate (1 {currency} = ? GBP)
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="exchange_rate"
+                type="text"
+                inputMode="decimal"
+                value={exchangeRate}
+                onChange={(e) => handleExchangeRateChange(e.target.value)}
+                className={inputClass}
+                disabled={gbpManualOverride}
+                required={!gbpManualOverride}
+              />
+              <button
+                type="button"
+                onClick={enableAutoRate}
+                disabled={fetchingRate}
+                className="btn-secondary shrink-0 px-4"
+              >
+                {fetchingRate ? "…" : "Fetch rate"}
+              </button>
+            </div>
+            {exchangeRateDate && !gbpManualOverride && (
+              <p className="mt-1 text-xs text-slate-500">
+                Rate date: {exchangeRateDate}
+                {exchangeRateDate !== date ? " (nearest available business day)" : ""}
+                {rateSource ? ` · Source: ${rateSource}` : ""}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={gbpManualOverride}
+                onChange={(e) => {
+                  setGbpManualOverride(e.target.checked);
+                  if (e.target.checked) {
+                    setRateManualOverride(false);
+                    setRateSource("manual");
+                    setExchangeRateDate(date);
+                  } else {
+                    enableAutoRate();
+                  }
+                }}
+              />
+              Enter actual GBP amount from bank/card
+            </label>
+            {gbpManualOverride && (
+              <input
+                type="text"
+                inputMode="decimal"
+                value={manualGbpAmount}
+                onChange={(e) => handleManualGbpChange(e.target.value)}
+                className={`${inputClass} mt-2`}
+                placeholder="0.00"
+                required
+              />
+            )}
           </div>
         </div>
       )}
@@ -432,7 +613,7 @@ export default function TransactionForm({
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || fetchingRate}
         className={`btn-primary w-full ${large ? "min-h-[56px] text-lg" : ""}`}
       >
         {loading
