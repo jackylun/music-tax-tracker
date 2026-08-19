@@ -170,7 +170,10 @@ export function getIncomeSelectOptions(currentValue?: string): string[] {
 
 /** Filter dropdown for Income lists — same active list; adds in-use historical categories only. */
 export function getIncomeFilterOptions(fromRecords: string[] = []): string[] {
-  return buildIncomeOptions({ fromRecords });
+  const filteredRecords = fromRecords.filter((cat) => cat !== "Other");
+  return buildIncomeOptions({ fromRecords: filteredRecords }).filter(
+    (cat) => cat !== "Other"
+  );
 }
 
 /** Dropdown options for Add/Edit Record (includes current value if historical). */
