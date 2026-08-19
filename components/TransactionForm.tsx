@@ -183,6 +183,10 @@ export default function TransactionForm({
     if (!isEdit) {
       setCategory(getDefaultCategory(newType));
     }
+    if (newType === "expense") {
+      setPaymentMethod("");
+      setBank("");
+    }
   }
 
   function handleAmountChange(value: string) {
@@ -297,11 +301,11 @@ export default function TransactionForm({
       payload.due_date = dueDate || null;
       payload.paid_date = paidDate || null;
       payload.payment_status = paymentStatus;
-      if (paymentMethod) {
-        payload.payment_method = paymentMethod;
-        if (paymentMethod === "Bank") {
-          payload.bank = bank;
-        }
+      if (paymentMethod === "Cash") {
+        payload.payment_method = "Cash";
+      } else if (paymentMethod === "Bank") {
+        payload.payment_method = "Bank";
+        payload.bank = bank;
       }
     }
 
@@ -572,26 +576,30 @@ export default function TransactionForm({
             </div>
           </div>
           <div>
-            <label className={labelClass} htmlFor="payment_method">
-              Payment Method
-            </label>
-            <select
-              id="payment_method"
-              value={paymentMethod}
-              onChange={(e) => {
-                const value = e.target.value as PaymentMethod | "";
-                setPaymentMethod(value);
-                if (value !== "Bank") setBank("");
-              }}
-              className={inputClass}
+            <span className={labelClass}>Payment Method</span>
+            <div
+              className={`grid grid-cols-2 gap-3 rounded-2xl bg-slate-100 p-1.5 ${large ? "p-2" : ""}`}
+              role="group"
+              aria-label="Payment method"
             >
-              <option value="">Select payment method</option>
               {PAYMENT_METHODS.map((method) => (
-                <option key={method} value={method}>
+                <button
+                  key={method}
+                  type="button"
+                  onClick={() => {
+                    setPaymentMethod(method);
+                    if (method !== "Bank") setBank("");
+                  }}
+                  className={`rounded-xl transition ${toggleClass} ${
+                    paymentMethod === method
+                      ? "bg-brand-600 text-white shadow-md"
+                      : "text-slate-600"
+                  }`}
+                >
                   {method}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
           {paymentMethod === "Bank" && (
             <div>
