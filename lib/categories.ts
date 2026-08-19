@@ -1,4 +1,4 @@
-/** Active income categories for new records. "Others" is always last. */
+/** Active income categories for new records (A–Z, "Others" last). */
 export const INCOME_CATEGORIES = [
   "Competition Prize",
   "Festival",
@@ -8,7 +8,7 @@ export const INCOME_CATEGORIES = [
   "Others",
 ] as const;
 
-/** Removed or historical income categories — valid on existing records only. */
+/** Removed income categories — valid on existing records only, not shown for new records. */
 export const LEGACY_INCOME_CATEGORIES = [
   "Accompanying",
   "Accompaniment",
@@ -29,6 +29,11 @@ export const LEGACY_INCOME_CATEGORIES = [
   "Royalties Theatre",
   "Theatre",
 ] as const;
+
+/** Shared active income list for Add Record, Records filters, and reports. */
+export function getActiveIncomeCategories(): readonly string[] {
+  return INCOME_CATEGORIES;
+}
 
 /**
  * Active expense categories for new records.
@@ -107,6 +112,30 @@ export function isValidExpenseCategory(cat: string): boolean {
   );
 }
 
+function buildIncomeOptions(opts: {
+  currentValue?: string;
+  fromRecords?: string[];
+}): string[] {
+  const active = [...INCOME_CATEGORIES];
+  const activeSet = new Set<string>(active);
+  const others = active[active.length - 1];
+  const extras = new Set<string>();
+
+  if (opts.currentValue && !activeSet.has(opts.currentValue)) {
+    extras.add(opts.currentValue);
+  }
+  for (const cat of opts.fromRecords ?? []) {
+    if (!activeSet.has(cat)) extras.add(cat);
+  }
+
+  if (extras.size === 0) {
+    return active;
+  }
+
+  const sortedExtras = Array.from(extras).sort((a, b) => a.localeCompare(b));
+  return [...active.slice(0, -1), ...sortedExtras, others];
+}
+
 function buildSelectOptions(
   active: readonly string[],
   legacy: readonly string[],
@@ -131,13 +160,14 @@ function buildSelectOptions(
   return [...active.slice(0, -1), ...sortedExtras, others];
 }
 
-/** Dropdown options for Add/Edit Record (includes current value if historical). */
+/** Dropdown options for Add/Edit Record (active categories + current value if historical). */
 export function getIncomeSelectOptions(currentValue?: string): string[] {
-  return buildSelectOptions(
-    INCOME_CATEGORIES,
-    LEGACY_INCOME_CATEGORIES,
-    currentValue
-  );
+  return buildIncomeOptions({ currentValue });
+}
+
+/** Filter dropdown for Income lists — same active list; adds in-use historical categories only. */
+export function getIncomeFilterOptions(fromRecords: string[] = []): string[] {
+  return buildIncomeOptions({ fromRecords });
 }
 
 /** Dropdown options for Add/Edit Record (includes current value if historical). */
@@ -154,16 +184,6 @@ export const getIncomeOptions = getIncomeSelectOptions;
 
 /** @deprecated Use getExpenseSelectOptions */
 export const getExpenseOptions = getExpenseSelectOptions;
-
-/** Filter dropdown options for Income lists/reports (includes legacy + in-use categories). */
-export function getIncomeFilterOptions(fromRecords: string[] = []): string[] {
-  return buildSelectOptions(
-    INCOME_CATEGORIES,
-    LEGACY_INCOME_CATEGORIES,
-    undefined,
-    fromRecords
-  );
-}
 
 /** Filter dropdown options for Expense lists/reports (includes legacy + in-use categories). */
 export function getExpenseFilterOptions(fromRecords: string[] = []): string[] {

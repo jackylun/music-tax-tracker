@@ -41,6 +41,39 @@ const TRANSPORT_EXPENSE_CATEGORIES = extractStringArray(
 const PAYMENT_METHODS = extractStringArray(paymentSource, "PAYMENT_METHODS");
 const BANKS = extractStringArray(paymentSource, "BANKS");
 
+const REMOVED_INCOME = [
+  "Accompanying",
+  "Arranging",
+  "Composition",
+  "KCL Teaching",
+  "Musical Director",
+  "Online Teaching",
+  "Other",
+  "Other Income",
+  "Piano Teaching",
+  "Private Teaching",
+  "Recording Session",
+  "Royalties",
+  "Royalties Theatre",
+  "Theatre",
+];
+
+function buildIncomeOptions(opts = {}) {
+  const active = [...INCOME_CATEGORIES];
+  const activeSet = new Set(active);
+  const others = active[active.length - 1];
+  const extras = new Set();
+  if (opts.currentValue && !activeSet.has(opts.currentValue)) {
+    extras.add(opts.currentValue);
+  }
+  for (const cat of opts.fromRecords ?? []) {
+    if (!activeSet.has(cat)) extras.add(cat);
+  }
+  if (extras.size === 0) return active;
+  const sortedExtras = Array.from(extras).sort((a, b) => a.localeCompare(b));
+  return [...active.slice(0, -1), ...sortedExtras, others];
+}
+
 function buildSelectOptions(active, legacy, currentValue, fromRecords = []) {
   const activeSet = new Set(active);
   const others = active[active.length - 1];
@@ -80,14 +113,8 @@ function main() {
 
   console.log("\nCategory & payment method verification\n");
 
-  const incomeSelect = buildSelectOptions(
-    INCOME_CATEGORIES,
-    LEGACY_INCOME_CATEGORIES
-  );
-  const incomeFilter = buildSelectOptions(
-    INCOME_CATEGORIES,
-    LEGACY_INCOME_CATEGORIES
-  );
+  const incomeSelect = buildIncomeOptions();
+  const incomeFilter = buildIncomeOptions({ fromRecords: [] });
   const expenseSelect = buildSelectOptions(
     EXPENSE_CATEGORIES,
     LEGACY_EXPENSE_CATEGORIES
@@ -139,6 +166,24 @@ function main() {
   );
 
   test(
+    "Removed income categories not in new record options",
+    REMOVED_INCOME.every((cat) => !incomeSelect.includes(cat))
+  );
+
+  test(
+    "Active income categories sorted A-Z before Others",
+    JSON.stringify(INCOME_CATEGORIES.slice(0, -1)) ===
+      JSON.stringify(
+        [...INCOME_CATEGORIES.slice(0, -1)].sort((a, b) => a.localeCompare(b))
+      )
+  );
+
+  test(
+    "Other not available for new records (only Others)",
+    !INCOME_CATEGORIES.includes("Other") && INCOME_CATEGORIES.includes("Others")
+  );
+
+  test(
     "Removed income categories not in active list",
     !INCOME_CATEGORIES.includes("Private Teaching") &&
       !INCOME_CATEGORIES.includes("Accompanying")
@@ -163,7 +208,7 @@ function main() {
 
   test(
     "Edit preserves historical category in select options",
-    buildSelectOptions(INCOME_CATEGORIES, LEGACY_INCOME_CATEGORIES, "Private Teaching").includes(
+    buildIncomeOptions({ currentValue: "Private Teaching" }).includes(
       "Private Teaching"
     )
   );
