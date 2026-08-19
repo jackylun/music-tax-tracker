@@ -4,6 +4,7 @@ import { resolveCurrencyForSave, ExchangeRateError } from "./exchange-rates";
 import type { CurrencyCode } from "./currency";
 import { buildTransactionFields } from "./transactions";
 import type { PaymentStatus, Receipt } from "./types";
+import type { Bank, PaymentMethod } from "./payment-method";
 
 interface ValidatedTransactionInput {
   type: "income" | "expense";
@@ -16,6 +17,8 @@ interface ValidatedTransactionInput {
   due_date: string | null;
   paid_date: string | null;
   payment_status: PaymentStatus | null;
+  payment_method: PaymentMethod | null;
+  bank: Bank | null;
   rate_manual_override: boolean;
   gbp_manual_override: boolean;
   exchange_rate?: number;
@@ -72,6 +75,8 @@ export async function buildTransactionFieldsWithCurrency(
     due_date: input.due_date,
     paid_date: input.paid_date,
     payment_status: input.payment_status,
+    payment_method: input.payment_method,
+    bank: input.bank,
     gig_client: meta.gig_client,
     notes: meta.notes,
     created_by: meta.created_by,

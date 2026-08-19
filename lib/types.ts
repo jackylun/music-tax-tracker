@@ -1,5 +1,6 @@
 import type { CurrencyCode } from "./currency";
 import type { RateSource } from "./exchange-rates";
+import type { Bank, PaymentMethod } from "./payment-method";
 
 export type TransactionType = "income" | "expense";
 
@@ -46,6 +47,10 @@ export interface Transaction {
   due_date: string | null;
   paid_date: string | null;
   payment_status: PaymentStatus | null;
+  /** Income only — null on legacy records without payment method */
+  payment_method: PaymentMethod | null;
+  /** Income only — set when payment_method is Bank */
+  bank: Bank | null;
   notes: string | null;
   /** @deprecated use notes */
   description?: string | null;

@@ -9,6 +9,12 @@ import {
   type CurrencyCode,
 } from "./currency";
 import { isValidPaymentStatus } from "./income";
+import {
+  isValidBank,
+  isValidPaymentMethod,
+  type Bank,
+  type PaymentMethod,
+} from "./payment-method";
 import type { PaymentStatus, TransactionType } from "./types";
 
 function parseOptionalDate(value: unknown): string | null {
@@ -78,12 +84,31 @@ export function validateTransactionInput(body: Record<string, unknown>) {
   }
 
   let paymentStatus: PaymentStatus | null = null;
+  let paymentMethod: PaymentMethod | null = null;
+  let bank: Bank | null = null;
+
   if (txType === "income") {
     const ps = body.payment_status as string | undefined;
     if (ps && !isValidPaymentStatus(ps)) {
       return { error: "Invalid payment status" };
     }
     paymentStatus = (ps as PaymentStatus) ?? "Pending";
+
+    const pm = body.payment_method as string | undefined;
+    if (pm != null && pm !== "") {
+      if (!isValidPaymentMethod(pm)) {
+        return { error: "Invalid payment method" };
+      }
+      paymentMethod = pm;
+    }
+
+    if (paymentMethod === "Bank") {
+      const bankValue = body.bank as string | undefined;
+      if (!bankValue || !isValidBank(bankValue)) {
+        return { error: "Bank is required when payment method is Bank" };
+      }
+      bank = bankValue;
+    }
   }
 
   const invoiceDate = parseOptionalDate(body.invoice_date);
@@ -106,6 +131,8 @@ export function validateTransactionInput(body: Record<string, unknown>) {
       due_date: dueDate,
       paid_date: paidDate,
       payment_status: paymentStatus,
+      payment_method: paymentMethod,
+      bank,
       rate_manual_override: rateManualOverride,
       gbp_manual_override: gbpManualOverride,
       exchange_rate:

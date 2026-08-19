@@ -16,6 +16,7 @@ import {
   SUPPORTED_CURRENCIES,
   type CurrencyCode,
 } from "@/lib/currency";
+import { BANKS, PAYMENT_METHODS, type Bank, type PaymentMethod } from "@/lib/payment-method";
 
 interface TransactionFormProps {
   initial?: Transaction;
@@ -76,6 +77,10 @@ export default function TransactionForm({
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(
     initial?.payment_status ?? "Pending"
   );
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">(
+    initial?.payment_method ?? ""
+  );
+  const [bank, setBank] = useState<Bank | "">(initial?.bank ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetchingRate, setFetchingRate] = useState(false);
@@ -217,6 +222,9 @@ export default function TransactionForm({
   }
 
   function validateBeforeSubmit(): string | null {
+    if (type === "income" && paymentMethod === "Bank" && !bank) {
+      return "Select a bank when payment method is Bank.";
+    }
     if (currency === "GBP") return null;
     if (gbpManualOverride) {
       const gbp = parseFloat(manualGbpAmount);
@@ -289,6 +297,12 @@ export default function TransactionForm({
       payload.due_date = dueDate || null;
       payload.paid_date = paidDate || null;
       payload.payment_status = paymentStatus;
+      if (paymentMethod) {
+        payload.payment_method = paymentMethod;
+        if (paymentMethod === "Bank") {
+          payload.bank = bank;
+        }
+      }
     }
 
     try {
@@ -557,6 +571,49 @@ export default function TransactionForm({
               />
             </div>
           </div>
+          <div>
+            <label className={labelClass} htmlFor="payment_method">
+              Payment Method
+            </label>
+            <select
+              id="payment_method"
+              value={paymentMethod}
+              onChange={(e) => {
+                const value = e.target.value as PaymentMethod | "";
+                setPaymentMethod(value);
+                if (value !== "Bank") setBank("");
+              }}
+              className={inputClass}
+            >
+              <option value="">Select payment method</option>
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
+              ))}
+            </select>
+          </div>
+          {paymentMethod === "Bank" && (
+            <div>
+              <label className={labelClass} htmlFor="bank">
+                Bank
+              </label>
+              <select
+                id="bank"
+                value={bank}
+                onChange={(e) => setBank(e.target.value as Bank)}
+                className={inputClass}
+                required
+              >
+                <option value="">Select bank</option>
+                {BANKS.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </>
       )}
 

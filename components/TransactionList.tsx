@@ -5,12 +5,7 @@ import type { Transaction } from "@/lib/types";
 import { formatDate } from "@/lib/format";
 import { getGbpAmount, getTransactionNotes } from "@/lib/transactions";
 import { getEffectivePaymentStatus } from "@/lib/income";
-import {
-  EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
-  LEGACY_EXPENSE_CATEGORIES,
-  LEGACY_INCOME_CATEGORIES,
-} from "@/lib/categories";
+import { getCategoryFilterOptions } from "@/lib/categories";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import AmountDisplay from "./AmountDisplay";
 import EditTransactionModal from "./EditTransactionModal";
@@ -44,20 +39,10 @@ export default function TransactionList({
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const categoryOptions = useMemo(() => {
-    const fromRecords = new Set(transactions.map((t) => t.category));
-    const options = new Set<string>();
-
-    if (typeFilter === "expense" || typeFilter === "all") {
-      for (const cat of EXPENSE_CATEGORIES) options.add(cat);
-      for (const cat of LEGACY_EXPENSE_CATEGORIES) options.add(cat);
-    }
-    if (typeFilter === "income" || typeFilter === "all") {
-      for (const cat of INCOME_CATEGORIES) options.add(cat);
-      for (const cat of LEGACY_INCOME_CATEGORIES) options.add(cat);
-    }
-    for (const cat of fromRecords) options.add(cat);
-
-    return Array.from(options).sort();
+    return getCategoryFilterOptions(
+      typeFilter,
+      transactions.map((t) => t.category)
+    );
   }, [transactions, typeFilter]);
 
   const filtered = useMemo(() => {

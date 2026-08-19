@@ -1,66 +1,70 @@
+/** Active income categories for new records. "Others" is always last. */
 export const INCOME_CATEGORIES = [
-  "Performance",
-  "Teaching - KCL",
-  "Teaching - Private",
-  "Accompanying",
-  "Recording Session",
-  "Arranging",
   "Competition Prize",
-  "Grant",
   "Festival",
-  "Other",
+  "Grant",
+  "Performance",
+  "Scholarship",
+  "Others",
 ] as const;
 
-/** Legacy categories kept for existing records */
+/** Removed or historical income categories — valid on existing records only. */
 export const LEGACY_INCOME_CATEGORIES = [
-  "KCL Teaching",
-  "Private Teaching",
+  "Accompanying",
   "Accompaniment",
-  "Musical Director",
+  "Arranging",
   "Church Service",
-  "Theatre",
+  "Composition",
+  "KCL Teaching",
+  "Teaching - KCL",
+  "Musical Director",
   "Online Teaching",
+  "Other",
   "Other Income",
   "Piano Teaching",
-  "Composition",
+  "Private Teaching",
+  "Teaching - Private",
+  "Recording Session",
   "Royalties",
+  "Royalties Theatre",
+  "Theatre",
 ] as const;
 
-export const EXPENSE_CATEGORY_GROUPS = [
-  {
-    group: "Travel & Living",
-    categories: ["Travel", "Accommodation", "Meals"],
-  },
-  {
-    group: "Music & Training",
-    categories: [
-      "Instrument Repair",
-      "Sheet Music",
-      "Music Books",
-      "Software",
-      "Recording Equipment",
-      "Professional Training",
-      "Private Lessons",
-      "Masterclass",
-      "Workshop",
-      "Music Camp",
-    ],
-  },
-  {
-    group: "Business",
-    categories: ["Insurance", "Accountant", "Phone", "Internet", "Other"],
-  },
-] as const;
-
-export const EXPENSE_CATEGORIES = EXPENSE_CATEGORY_GROUPS.flatMap(
-  (g) => g.categories
-);
-
-/** Legacy categories kept for existing records */
-export const LEGACY_EXPENSE_CATEGORIES = [
-  "Flights",
+/**
+ * Active expense categories for new records.
+ * Transport categories appear consecutively; "Others" is always last.
+ */
+export const EXPENSE_CATEGORIES = [
+  "Accommodation",
+  "Accountant",
+  "Instrument Repair",
+  "Insurance",
+  "Internet",
+  "Masterclass",
+  "Meals",
+  "Music Books",
+  "Music Camp",
+  "Phone",
+  "Private Lessons",
+  "Professional Training",
+  "Recording Equipment",
+  "Software",
+  "Flight Tickets",
   "Train",
   "Bus",
+  "Uber",
+  "Other Transport",
+  "Others",
+] as const;
+
+/** Removed or historical expense categories — valid on existing records only. */
+export const LEGACY_EXPENSE_CATEGORIES = [
+  "Travel",
+  "Sheet Music",
+  "Workshop",
+  "Other",
+  "Other Expense",
+  "Flights",
   "Underground",
   "Uber / Taxi",
   "Parking",
@@ -81,7 +85,6 @@ export const LEGACY_EXPENSE_CATEGORIES = [
   "Advertising",
   "Printing",
   "Hotel",
-  "Other Expense",
   "Music",
   "Business",
   "General",
@@ -104,29 +107,86 @@ export function isValidExpenseCategory(cat: string): boolean {
   );
 }
 
-export function getIncomeOptions(currentValue?: string): string[] {
-  const options = new Set<string>([...INCOME_CATEGORIES]);
-  if (currentValue && !options.has(currentValue)) {
-    options.add(currentValue);
+function buildSelectOptions(
+  active: readonly string[],
+  legacy: readonly string[],
+  currentValue?: string,
+  fromRecords?: string[]
+): string[] {
+  const activeSet = new Set<string>(active);
+  const others = active[active.length - 1];
+  const extras = new Set<string>();
+
+  for (const cat of legacy) {
+    if (!activeSet.has(cat)) extras.add(cat);
   }
-  return Array.from(options);
+  if (currentValue && !activeSet.has(currentValue)) {
+    extras.add(currentValue);
+  }
+  for (const cat of fromRecords ?? []) {
+    if (!activeSet.has(cat)) extras.add(cat);
+  }
+
+  const sortedExtras = Array.from(extras).sort((a, b) => a.localeCompare(b));
+  return [...active.slice(0, -1), ...sortedExtras, others];
 }
 
-export function getExpenseOptions(currentValue?: string): string[] {
-  const options = new Set<string>([...EXPENSE_CATEGORIES]);
-  if (currentValue && !options.has(currentValue)) {
-    options.add(currentValue);
-  }
-  return Array.from(options);
+/** Dropdown options for Add/Edit Record (includes current value if historical). */
+export function getIncomeSelectOptions(currentValue?: string): string[] {
+  return buildSelectOptions(
+    INCOME_CATEGORIES,
+    LEGACY_INCOME_CATEGORIES,
+    currentValue
+  );
 }
 
-export function getExpenseGroup(category: string): string | null {
-  for (const group of EXPENSE_CATEGORY_GROUPS) {
-    if ((group.categories as readonly string[]).includes(category)) {
-      return group.group;
-    }
-  }
-  return null;
+/** Dropdown options for Add/Edit Record (includes current value if historical). */
+export function getExpenseSelectOptions(currentValue?: string): string[] {
+  return buildSelectOptions(
+    EXPENSE_CATEGORIES,
+    LEGACY_EXPENSE_CATEGORIES,
+    currentValue
+  );
+}
+
+/** @deprecated Use getIncomeSelectOptions */
+export const getIncomeOptions = getIncomeSelectOptions;
+
+/** @deprecated Use getExpenseSelectOptions */
+export const getExpenseOptions = getExpenseSelectOptions;
+
+/** Filter dropdown options for Income lists/reports (includes legacy + in-use categories). */
+export function getIncomeFilterOptions(fromRecords: string[] = []): string[] {
+  return buildSelectOptions(
+    INCOME_CATEGORIES,
+    LEGACY_INCOME_CATEGORIES,
+    undefined,
+    fromRecords
+  );
+}
+
+/** Filter dropdown options for Expense lists/reports (includes legacy + in-use categories). */
+export function getExpenseFilterOptions(fromRecords: string[] = []): string[] {
+  return buildSelectOptions(
+    EXPENSE_CATEGORIES,
+    LEGACY_EXPENSE_CATEGORIES,
+    undefined,
+    fromRecords
+  );
+}
+
+/** Combined filter options when type is unknown or "all". */
+export function getCategoryFilterOptions(
+  type: "income" | "expense" | "all",
+  fromRecords: string[] = []
+): string[] {
+  if (type === "income") return getIncomeFilterOptions(fromRecords);
+  if (type === "expense") return getExpenseFilterOptions(fromRecords);
+  const combined = new Set<string>([
+    ...getIncomeFilterOptions(fromRecords),
+    ...getExpenseFilterOptions(fromRecords),
+  ]);
+  return Array.from(combined).sort((a, b) => a.localeCompare(b));
 }
 
 export function getDefaultCategory(type: "income" | "expense"): string {
@@ -136,4 +196,13 @@ export function getDefaultCategory(type: "income" | "expense"): string {
 export const ALL_CATEGORIES = [
   ...INCOME_CATEGORIES,
   ...EXPENSE_CATEGORIES,
+] as const;
+
+/** Transport expense categories in display order. */
+export const TRANSPORT_EXPENSE_CATEGORIES = [
+  "Flight Tickets",
+  "Train",
+  "Bus",
+  "Uber",
+  "Other Transport",
 ] as const;

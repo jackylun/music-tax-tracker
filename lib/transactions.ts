@@ -8,6 +8,8 @@ import {
 import { isValidPaymentStatus } from "./income";
 import type { PaymentStatus, Receipt, Transaction } from "./types";
 import type { RateSource } from "./exchange-rates";
+import type { Bank, PaymentMethod } from "./payment-method";
+import { isValidBank, isValidPaymentMethod } from "./payment-method";
 
 function parseOptionalDate(value: unknown): string | null {
   if (value == null || value === "") return null;
@@ -55,6 +57,8 @@ export function normalizeTransaction(raw: Record<string, unknown>): Transaction 
     due_date: parseOptionalDate(raw.due_date),
     paid_date: parseOptionalDate(raw.paid_date),
     payment_status: paymentStatus,
+    payment_method: resolvePaymentMethod(raw),
+    bank: resolveBank(raw),
     notes:
       (raw.notes as string | null) ??
       (raw.description as string | null) ??
@@ -83,6 +87,20 @@ function resolveOriginalAmount(
   }
   const legacy = Number(raw.amount);
   return currency === "JPY" ? roundJpy(legacy) : roundMoney(legacy);
+}
+
+function resolvePaymentMethod(
+  raw: Record<string, unknown>
+): Transaction["payment_method"] {
+  const value = raw.payment_method as string | undefined;
+  if (value && isValidPaymentMethod(value)) return value;
+  return null;
+}
+
+function resolveBank(raw: Record<string, unknown>): Transaction["bank"] {
+  const value = raw.bank as string | undefined;
+  if (value && isValidBank(value)) return value;
+  return null;
 }
 
 function resolveExchangeRate(
@@ -131,6 +149,8 @@ export function buildTransactionFields(input: {
   due_date?: string | null;
   paid_date?: string | null;
   payment_status?: PaymentStatus | null;
+  payment_method?: PaymentMethod | null;
+  bank?: Bank | null;
   created_by: string;
   created_at?: string;
   receipts?: Receipt[];
@@ -173,6 +193,8 @@ export function buildTransactionFields(input: {
       due_date: input.due_date ?? null,
       paid_date: input.paid_date ?? null,
       payment_status: input.payment_status ?? "Pending",
+      payment_method: input.payment_method ?? null,
+      bank: input.payment_method === "Bank" ? (input.bank ?? null) : null,
     };
   }
 
@@ -183,5 +205,7 @@ export function buildTransactionFields(input: {
     due_date: null,
     paid_date: null,
     payment_status: null,
+    payment_method: null,
+    bank: null,
   };
 }

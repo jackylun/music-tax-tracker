@@ -11,7 +11,7 @@ import {
   sumIncomeByStatus,
 } from "@/lib/income";
 import { getGbpAmount, getTransactionNotes } from "@/lib/transactions";
-import { INCOME_CATEGORIES } from "@/lib/categories";
+import { getIncomeFilterOptions } from "@/lib/categories";
 import { SUPPORTED_CURRENCIES } from "@/lib/currency";
 import AmountDisplay from "./AmountDisplay";
 import EditTransactionModal from "./EditTransactionModal";
@@ -46,8 +46,7 @@ export default function IncomeList({
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const categories = useMemo(() => {
-    const cats = new Set(transactions.map((t) => t.category));
-    return Array.from(cats).sort();
+    return getIncomeFilterOptions(transactions.map((t) => t.category));
   }, [transactions]);
 
   const filtered = useMemo(() => {
@@ -231,7 +230,7 @@ export default function IncomeList({
             className="input-field py-2"
           >
             <option value="all">All categories</option>
-            {[...INCOME_CATEGORIES, ...categories.filter((c) => !(INCOME_CATEGORIES as readonly string[]).includes(c))].map((cat) => (
+            {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
               </option>
