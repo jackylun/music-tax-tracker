@@ -1,29 +1,32 @@
 /** Active income categories for new records (A–Z, "Others" last). */
 export const INCOME_CATEGORIES = [
+  "Accompaniment",
+  "Church",
   "Competition Prize",
   "Festival",
   "Grant",
+  "Meals",
   "Performance",
+  "Private Event",
   "Scholarship",
+  "Teaching - KCL",
+  "Teaching - Private",
   "Others",
 ] as const;
 
 /** Removed income categories — valid on existing records only, not shown for new records. */
 export const LEGACY_INCOME_CATEGORIES = [
   "Accompanying",
-  "Accompaniment",
   "Arranging",
   "Church Service",
   "Composition",
   "KCL Teaching",
-  "Teaching - KCL",
   "Musical Director",
   "Online Teaching",
   "Other",
   "Other Income",
   "Piano Teaching",
   "Private Teaching",
-  "Teaching - Private",
   "Recording Session",
   "Royalties",
   "Royalties Theatre",

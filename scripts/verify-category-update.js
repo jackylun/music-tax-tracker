@@ -41,9 +41,25 @@ const TRANSPORT_EXPENSE_CATEGORIES = extractStringArray(
 const PAYMENT_METHODS = extractStringArray(paymentSource, "PAYMENT_METHODS");
 const BANKS = extractStringArray(paymentSource, "BANKS");
 
+const EXPECTED_INCOME_CATEGORIES = [
+  "Accompaniment",
+  "Church",
+  "Competition Prize",
+  "Festival",
+  "Grant",
+  "Meals",
+  "Performance",
+  "Private Event",
+  "Scholarship",
+  "Teaching - KCL",
+  "Teaching - Private",
+  "Others",
+];
+
 const REMOVED_INCOME = [
   "Accompanying",
   "Arranging",
+  "Church Service",
   "Composition",
   "KCL Teaching",
   "Musical Director",
@@ -125,6 +141,18 @@ function main() {
   );
 
   test(
+    "Add Record has exactly 12 income categories",
+    JSON.stringify(incomeSelect) === JSON.stringify(EXPECTED_INCOME_CATEGORIES) &&
+      incomeSelect.length === 12
+  );
+
+  test(
+    "Records Income filter has exactly 12 active categories",
+    JSON.stringify(incomeFilter) === JSON.stringify(EXPECTED_INCOME_CATEGORIES) &&
+      incomeFilter.length === 12
+  );
+
+  test(
     "Add Record and Records share Income categories",
     JSON.stringify(incomeSelect) === JSON.stringify(incomeFilter)
   );
@@ -186,8 +214,20 @@ function main() {
   test(
     "Removed income categories not in active list",
     !INCOME_CATEGORIES.includes("Private Teaching") &&
-      !INCOME_CATEGORIES.includes("Accompanying")
+      !INCOME_CATEGORIES.includes("Accompanying") &&
+      !INCOME_CATEGORIES.includes("Other")
   );
+
+  for (const cat of [
+    "Accompaniment",
+    "Church",
+    "Meals",
+    "Private Event",
+    "Teaching - KCL",
+    "Teaching - Private",
+  ]) {
+    test(`${cat} is active`, INCOME_CATEGORIES.includes(cat));
+  }
 
   test(
     "Removed expense categories not in active list",
